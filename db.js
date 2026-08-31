@@ -4,9 +4,9 @@ const path = require('path');
 const fs = require('fs');
 
 const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
-const dbPath = isVercel
+const dbPath = process.env.DB_PATH || (isVercel
   ? path.join('/tmp', 'belo-frango.db')
-  : path.join(__dirname, 'data', 'belo-frango.db');
+  : path.join(__dirname, 'data', 'belo-frango.db'));
 
 // Cria o diretório de dados se não existir
 const dataDir = path.dirname(dbPath);
