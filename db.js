@@ -3,7 +3,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
 
-const isVercel = Boolean(process.env.VERCEL);
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
 const dbPath = isVercel
   ? path.join('/tmp', 'belo-frango.db')
   : path.join(__dirname, 'data', 'belo-frango.db');
@@ -26,8 +26,13 @@ const db = new sqlite3.Database(dbPath, (err) => {
 // Configurações do banco
 db.run('PRAGMA foreign_keys = ON');
 
+let initialized = false;
+
 // Função para executar migrations
 function initialize() {
+  if (initialized) return;
+  initialized = true;
+
   db.serialize(() => {
   // Tabela de usuários (vendedores)
   db.run(`

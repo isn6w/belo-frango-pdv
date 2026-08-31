@@ -6,6 +6,11 @@ const bcrypt = require('bcrypt');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+if (isServerlessRuntime) {
+  app.set('trust proxy', 1);
+}
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -18,7 +23,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    secure: isServerlessRuntime ? true : false,
+    httpOnly: true,
+    sameSite: isServerlessRuntime ? 'none' : 'lax',
     maxAge: 3600000 // 1 hora
   }
 }));
@@ -495,9 +502,16 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-initialize();
+let initialized = false;
+function ensureInitialized() {
+  if (initialized) return;
+  initialized = true;
+  initialize();
+}
 
-if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+ensureInitialized();
+
+if (isServerlessRuntime) {
   module.exports = app;
 } else {
   app.listen(PORT, () => {
