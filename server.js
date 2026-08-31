@@ -26,7 +26,7 @@ app.use(session({
     secure: isServerlessRuntime ? true : false,
     httpOnly: true,
     sameSite: isServerlessRuntime ? 'none' : 'lax',
-    maxAge: 3600000 // 1 hora
+    maxAge: 3600000
   }
 }));
 
