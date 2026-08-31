@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Configuração de sessão
 app.use(session({
@@ -497,11 +497,16 @@ app.get('*', (req, res) => {
 
 initialize();
 
-app.listen(PORT, () => {
-  console.log(`\n========================================`);
-  console.log(`  Belo Frango PDV - Sistema de Vendas`);
-  console.log(`========================================`);
-  console.log(`  Servidor rodando em: http://localhost:${PORT}`);
-  console.log(`  Acesse para começar a usar o sistema\n`);
+if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+  module.exports = app;
+} else {
+  app.listen(PORT, () => {
+    console.log(`\n========================================`);
+    console.log(`  Belo Frango PDV - Sistema de Vendas`);
+    console.log(`========================================`);
+    console.log(`  Servidor rodando em: http://localhost:${PORT}`);
+    console.log(`  Acesse para começar a usar o sistema\n`);
+  });
+}
 
-});
+module.exports = app;

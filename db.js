@@ -1,11 +1,14 @@
 // Configuração do banco de dados SQLite
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 
-const dbPath = path.join(__dirname, 'data', 'belo-frango.db');
+const isVercel = Boolean(process.env.VERCEL);
+const dbPath = isVercel
+  ? path.join('/tmp', 'belo-frango.db')
+  : path.join(__dirname, 'data', 'belo-frango.db');
 
 // Cria o diretório de dados se não existir
-const fs = require('fs');
 const dataDir = path.dirname(dbPath);
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
