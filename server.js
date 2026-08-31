@@ -19,7 +19,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Configuração de sessão
 app.use(session({
-  secret: 'belo-frango-super-mercearia-2024',
+  secret: process.env.SESSION_SECRET || 'belo-frango-super-mercearia-2024',
   resave: false,
   saveUninitialized: false,
   cookie: {

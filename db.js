@@ -10,6 +10,16 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+// Se DB_PATH aponta para um disco persistente (ex: Render) que ainda não tem
+// banco de dados (primeiro deploy), semeia com o banco já existente dentro do
+// repositório, para não começar do zero. Só copia se o destino ainda NÃO
+// existir — nunca sobrescreve dados que já estejam no disco persistente.
+const seedDbPath = path.join(__dirname, 'data', 'belo-frango.db');
+if (path.resolve(dbPath) !== path.resolve(seedDbPath) && !fs.existsSync(dbPath) && fs.existsSync(seedDbPath)) {
+  fs.copyFileSync(seedDbPath, dbPath);
+  console.log('Banco de dados semeado a partir de', seedDbPath, '->', dbPath);
+}
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Erro ao conectar ao banco de dados:', err.message);
