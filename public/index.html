@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#E4342F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Belo Frango · PDV</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="bg-blobs"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<div class="login-screen" id="loginScreen">
+  <div class="glass login-card">
+    <div class="brand">
+      <img class="brand-logo" src="logo.png" alt="Logo Belo Frango">
+      <h1>BELO <span>FRANGO</span></h1>
+    </div>
+    <p class="login-sub">Login do vendedor</p>
+    <label class="field" style="text-align:left;">Usuário<input type="text" id="loginUser" autocomplete="username" placeholder="usuário"></label>
+    <label class="field" style="text-align:left;">Senha<input type="password" id="loginSenha" autocomplete="current-password" placeholder="senha"></label>
+    <div class="login-erro" id="loginErro" style="display:none;">Usuário ou senha incorretos.</div>
+    <button class="btn-primary" id="loginBtn" style="width:100%;">Entrar</button>
+  </div>
+</div>
+
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-backdrop"></div>
+  <div class="loading-plate">
+    <div class="loading-orbit orbit-one"></div>
+    <div class="loading-orbit orbit-two"></div>
+    <div class="loading-core">
+      <div class="loading-shine" id="shineEl"></div>
+      <img class="loading-logo" id="loadingLogo" src="logo.png" alt="Logo Belo Frango">
+    </div>
+    <div class="loading-copy">
+      <span class="loading-tag">Belo Frango PDV</span>
+      <strong id="loadingMessage">Carregando banco de dados...</strong>
+      <div class="loading-progress" aria-label="Carregando sistema">
+        <span></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="appWrapper" style="display:none;">
+<div class="modal-overlay" id="pesoModal">
+  <div class="glass modal-card">
+    <h3>Peso de <span class="peso-nome" id="pesoModalNome">produto</span></h3>
+    <label class="field">Peso exato (kg)
+      <input type="text" id="pesoInput" inputmode="decimal" placeholder="ex: 1,350">
+    </label>
+    <div class="modal-actions">
+      <button class="btn-primary" id="pesoConfirmar" style="flex:1;">Adicionar</button>
+      <button class="btn-ghost" id="pesoCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="qrPagamentoModal">
+  <div class="glass modal-card">
+    <h3 id="qrPagamentoTitulo">Pagamento via Pix</h3>
+    <img id="qrPagamentoImagem" alt="QR Code de pagamento" style="display:none; width:200px; height:200px; object-fit:contain; border-radius:14px; background:#fff; padding:10px; margin:0 auto;">
+    <p id="qrPagamentoAviso" style="font-size:12px; color:var(--ink-soft); font-weight:600; text-align:center; margin:4px 0;"></p>
+    <p style="font-size:13px; font-weight:800; text-align:center; margin:0;">Total: <span id="qrPagamentoTotal"></span></p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="qrPagamentoConfirmar" style="flex:1;">Confirmar pagamento</button>
+      <button class="btn-ghost" id="qrPagamentoCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="recebimentoModal">
+  <div class="glass modal-card">
+    <h3>Recebimento da venda</h3>
+    <p style="font-size:13px; color:var(--ink-soft); font-weight:600; text-align:center; margin:0;">Total da venda: <strong id="recebimentoTotal" style="color:var(--ink);">R$ 0,00</strong></p>
+    <label class="field">Valor recebido
+      <input type="number" id="recebimentoInput" min="0" step="0.01" value="0">
+    </label>
+    <div class="totais-row" style="margin-top:8px;"><span>Troco</span><span id="recebimentoTroco" style="font-weight:900; color:var(--good);">R$ 0,00</span></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="recebimentoConfirmar" style="flex:1;">Confirmar</button>
+      <button class="btn-ghost" id="recebimentoCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="boletoModal">
+  <div class="glass modal-card">
+    <h3>Vencimento do boleto</h3>
+    <p style="font-size:13px; color:var(--ink-soft); font-weight:600; text-align:center; margin:0;">Informe a data de vencimento da venda fiada.</p>
+    <label class="field">Data de vencimento
+      <input type="date" id="boletoVencimento">
+    </label>
+    <div class="modal-actions">
+      <button class="btn-primary" id="boletoConfirmar" style="flex:1;">Finalizar venda</button>
+      <button class="btn-ghost" id="boletoCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="reverterNotaModal">
+  <div class="glass modal-card xml-reversao-modal">
+    <h3>Reverter entrada da nota</h3>
+    <div id="reverterNotaPrevia" class="reverter-nota-previa"></div>
+    <label class="confirmacao-reversao">
+      <input type="checkbox" id="reverterNotaConfirmacao">
+      <span>Confirmo que desejo reverter esta entrada e remover seus itens do estoque.</span>
+    </label>
+    <label class="field">Senha do vendedor
+      <input type="password" id="reverterNotaSenha" autocomplete="current-password" placeholder="Digite sua senha">
+    </label>
+    <p id="reverterNotaErro" class="login-erro" style="display:none;"></p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="reverterNotaConfirmar" style="flex:1;">Confirmar reversão</button>
+      <button class="btn-ghost" id="reverterNotaCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="cancelarVendaModal">
+  <div class="glass modal-card">
+    <h3>Cancelar venda</h3>
+    <p style="font-size:13px; color:var(--ink-soft); font-weight:600; text-align:center; margin:0;">Tem certeza que deseja cancelar esta venda? O estoque dos itens será devolvido automaticamente.</p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="cancelarVendaConfirmar" style="flex:1; background:var(--vermelho);">Sim, eu confirmo</button>
+      <button class="btn-ghost" id="cancelarVendaVoltar">Voltar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="abrirCaixaModal">
+  <div class="glass modal-card">
+    <h3>Abrir caixa</h3>
+    <label class="field">Troco inicial em caixa
+      <input type="number" id="caixaAberturaValor" min="0" step="0.01" value="50">
+    </label>
+    <label class="field">Estoque de troco
+      <input type="number" id="caixaAberturaEstoque" min="0" step="0.01" value="200">
+    </label>
+    <div class="modal-actions">
+      <button class="btn-primary" id="caixaAberturaConfirmar" style="flex:1;">Confirmar abertura</button>
+      <button class="btn-ghost" id="caixaAberturaCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirmarFechamentoCaixaModal">
+  <div class="glass modal-card">
+    <h3>Fechar caixa</h3>
+    <p style="font-size:13px; color:var(--ink-soft); font-weight:600; text-align:center; margin:0;">Deseja confirmar o fechamento do caixa e visualizar o resumo final das vendas?</p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="fechamentoCaixaConfirmar" style="flex:1;">Continuar</button>
+      <button class="btn-ghost" id="fechamentoCaixaCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="fechamentoResumoCaixaModal">
+  <div class="glass modal-card">
+    <h3>Resumo do fechamento</h3>
+    <div id="fechamentoCaixaResumoCorpo" style="display:grid; gap:8px; margin:12px 0;"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="fechamentoCaixaResumoConfirmar" style="flex:1;">Confirmar fechamento</button>
+      <button class="btn-ghost" id="fechamentoCaixaResumoFechar">Voltar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="excluirProdutoModal">
+  <div class="glass modal-card">
+    <h3>Excluir produto</h3>
+    <p style="font-size:13px; color:var(--ink-soft); font-weight:600; text-align:center; margin:0;">Tem certeza que deseja excluir este produto do estoque?</p>
+    <div class="modal-actions">
+      <button class="btn-primary" id="excluirProdutoConfirmar" style="flex:1; background:var(--vermelho);">Sim, excluir</button>
+      <button class="btn-ghost" id="excluirProdutoVoltar">Voltar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="comprovanteModal">
+  <div class="glass modal-card" style="max-width:380px; text-align:left;">
+    <h3 style="text-align:center;">Comprovante de venda</h3>
+    <p id="comprovanteAviso" style="font-size:12px; color:var(--ink-soft); font-weight:600; margin:0;"></p>
+    <pre id="comprovanteTexto" style="white-space:pre-wrap; font-family:'Montserrat',sans-serif; font-size:12px; background:var(--superficie); border-radius:12px; padding:12px; max-height:260px; overflow-y:auto; margin:0;"></pre>
+    <button class="btn-ghost" id="comprovanteEmailBtn" style="display:none;">Enviar por e-mail</button>
+    <button class="btn-ghost" id="comprovanteWhatsBtn" style="display:none;">Enviar por WhatsApp</button>
+    <button class="btn-primary" id="comprovanteFechar">Fechar</button>
+  </div>
+</div>
+<div class="modal-overlay" id="xmlPreviewModal">
+  <div class="glass modal-card xml-preview-modal">
+    <h3>Prévia da nota fiscal</h3>
+    <p id="xmlPreviewAviso" class="xml-preview-aviso"></p>
+    <div id="xmlPreviewConteudo" class="xml-preview-conteudo"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="xmlPreviewConfirmar" style="flex:1;">Importar itens</button>
+      <button class="btn-ghost" id="xmlPreviewCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
+<header>
+  <div class="brand">
+    <img class="brand-logo" src="logo.png" alt="Logo Belo Frango">
+    <div>
+      <h1>BELO <span>FRANGO</span></h1>
+      <span class="tag">Sistema de vendas</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <nav id="nav">
+      <button data-tab="pdv" class="active">Venda</button>
+      <button data-tab="estoque">Estoque</button>
+      <button data-tab="clientes">Clientes</button>
+      <button data-tab="vendedores">Vendedores</button>
+      <button data-tab="boletos">Boletos</button>
+      <button data-tab="historico">Histórico</button>
+      <button data-tab="faturamento">Faturamento</button>
+      <button data-tab="caixa">Caixa</button>
+      <button data-tab="config">Config</button>
+    </nav>
+    <div class="vendedor-badge" id="vendedorBadge">
+      <span class="avatar" id="vendedorAvatar">?</span>
+      <span id="vendedorNomeLabel">—</span>
+      <button id="logoutBtn">Sair</button>
+    </div>
+    <button id="fundoToggle" title="Alternar fundo animado/estático">🎞️</button>
+    <button id="themeToggle" title="Alternar tema">🌙</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- PDV -->
+  <section class="tab active" id="tab-pdv">
+    <div class="pdv-grid">
+      <div class="glass" style="min-height:200px;">
+        <div style="padding:18px 18px 0; display:flex; flex-direction:column; gap:10px;">
+          <h2 class="section-title">Produtos</h2>
+          <input type="text" id="scannerInput" placeholder="🔦 Escanear código de barras (ou digitar aqui)" autocomplete="off">
+          <input type="text" id="buscaProduto" placeholder="Buscar por nome ou código (ex: peito, 0003...)">
+        </div>
+        <div class="prod-grid" id="prodGrid"></div>
+      </div>
+
+      <div class="glass cart-panel">
+        <h2 class="section-title" style="margin-bottom:2px;">Venda atual</h2>
+        <label class="field">Cliente (opcional)</label>
+        <div class="cliente-busca-wrap">
+          <input type="text" id="clienteBusca" placeholder="Buscar por nome, telefone ou código..." autocomplete="off">
+          <div class="cliente-dropdown-list" id="clienteDropdown"></div>
+        </div>
+        <div class="cliente-chip" id="clienteChip"></div>
+        <div class="cart-items" id="cartItems"></div>
+        <div class="totais-row"><span>Itens</span><span id="totalItens">0</span></div>
+        <div class="totais-row"><span>Desconto</span><input type="number" id="descontoInput" min="0" step="0.01" value="0" style="max-width:110px; padding:7px 8px; font-size:11px; text-align:right;"></div>
+        <div class="totais-row total"><span>Total</span><span id="totalVenda">R$ 0,00</span></div>
+        <label class="field">Forma de pagamento</label>
+        <div class="pagamentos" id="pagamentos">
+          <button data-p="Dinheiro" class="sel">Dinheiro</button>
+          <button data-p="Cartão">Cartão</button>
+          <button data-p="Pix">Pix</button>
+          <button data-p="PicPay">PicPay</button>
+          <button data-p="Fiado">Fiado</button>
+        </div>
+        <div class="sub-pagamento" id="subCartao">
+          <button data-c="Crédito" class="sel">Crédito</button>
+          <button data-c="Débito">Débito</button>
+        </div>
+        <div class="parcelamento" id="parcelamento">
+          <div class="parcelamento-topo">
+            <span class="parcelamento-titulo">Parcelamento no crédito</span>
+            <div class="juros-tipo" id="jurosTipo">
+              <button data-j="sem" class="sel">Sem juros</button>
+              <button data-j="com">Com juros</button>
+            </div>
+          </div>
+          <div class="parcelas-grid" id="parcelasGrid"></div>
+          <div class="parcela-resumo" id="parcelaResumo"></div>
+        </div>        <button class="btn-primary" id="finalizarBtn" disabled>Finalizar venda</button>
+        <button class="btn-ghost" id="limparCarrinho">Limpar carrinho</button>
+      </div>
+
+      <!-- Vendas Recentes -->
+      <div class="glass" style="min-height:200px;">
+        <div style="padding:18px 18px 0;">
+          <h2 class="section-title">Vendas recentes</h2>
+        </div>
+        <div class="vendas-recientes-grid" id="vendasRecentesGrid"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ESTOQUE -->
+  <section class="tab" id="tab-estoque">
+    <div class="glass" style="padding:18px;">
+      <div class="toolbar">
+        <h2 class="section-title" style="margin:0;">Estoque de produtos</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <label class="btn-ghost" style="cursor:pointer; margin:0; padding:9px 14px;">
+            Importar XML da nota
+            <input type="file" id="xmlImportInput" accept=".xml" multiple style="display:none;">
+          </label>
+          <button class="btn-primary" id="novoProdutoBtn" style="padding:9px 16px; font-size:12px;">+ Novo produto</button>
+          <input type="search" id="buscaEstoque" placeholder="Pesquisar itens..." aria-label="Pesquisar itens no estoque">
+          <div style="display:flex; gap:6px; margin-left:auto;">
+            <select id="filtroEstoque" style="padding:8px 10px; border-radius:8px; border:1px solid var(--glass-border); background:var(--superficie); color:var(--ink); font-weight:600; font-size:11px;">
+              <option value="nome-asc">Nome (A-Z)</option>
+              <option value="nome-desc">Nome (Z-A)</option>
+              <option value="preco-asc">Preço (menor)</option>
+              <option value="preco-desc">Preço (maior)</option>
+              <option value="qtd-asc">Quantidade (menor)</option>
+              <option value="qtd-desc">Quantidade (maior)</option>
+              <option value="validade-asc">Vencimento (mais perto)</option>
+              <option value="validade-desc">Vencimento (mais longe)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="formProduto" style="display:none;"></div>
+      <div class="lista" id="listaEstoque"></div>
+      <div class="notas-importadas-section">
+        <div class="toolbar" style="margin:22px 0 10px;">
+          <h3 class="section-title" style="margin:0;">Notas XML importadas</h3>
+          <span class="section-hint">Reverta uma entrada para devolver os itens ao estoque.</span>
+        </div>
+        <input type="search" id="buscaNotasImportadas" class="busca-notas" placeholder="Pesquisar notas por fornecedor, NF ou chave..." aria-label="Pesquisar notas importadas">
+        <div class="lista" id="listaNotasImportadas"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLIENTES -->
+  <section class="tab" id="tab-clientes">
+    <div class="glass" style="padding:18px;">
+      <div class="toolbar">
+        <h2 class="section-title" style="margin:0;">Clientes</h2>
+        <button class="btn-primary" id="novoClienteBtn" style="padding:9px 16px; font-size:12px;">+ Novo cliente</button>
+      </div>
+      <div id="formCliente" style="display:none;"></div>
+      <div class="lista" id="listaClientes"></div>
+    </div>
+  </section>
+
+  <!-- VENDEDORES -->
+  <section class="tab" id="tab-vendedores">
+    <div class="glass" style="padding:18px;">
+      <div class="toolbar">
+        <h2 class="section-title" style="margin:0;">Vendedores</h2>
+        <button class="btn-primary" id="novoVendedorBtn" style="padding:9px 16px; font-size:12px;">+ Novo vendedor</button>
+      </div>
+      <div id="formVendedor" style="display:none;"></div>
+      <div class="lista" id="listaVendedores"></div>
+    </div>
+  </section>
+
+  <!-- HISTORICO -->
+  <section class="tab" id="tab-boletos">
+    <div class="stat-row" id="boletoStatRow"></div>
+    <div class="glass" style="padding:18px;">
+      <div class="toolbar">
+        <h2 class="section-title" style="margin:0;">Controle de boletos</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <select id="boletoFiltroStatus" aria-label="Filtrar boletos por status">
+            <option value="todos">Todos os status</option>
+            <option value="aberto">Em aberto</option>
+            <option value="vencido">Vencidos</option>
+            <option value="pago">Pagos</option>
+          </select>
+          <input type="date" id="boletoFiltroInicial" aria-label="Data inicial">
+          <input type="date" id="boletoFiltroFinal" aria-label="Data final">
+          <input type="search" id="boletoFiltroCliente" placeholder="Buscar cliente..." aria-label="Buscar cliente">
+        </div>
+      </div>
+      <div class="lista" id="listaBoletos"></div>
+    </div>
+  </section>
+
+  <!-- HISTORICO -->
+  <section class="tab" id="tab-historico">
+    <div class="stat-row" id="statRow"></div>
+    <div class="glass" style="padding:18px;">
+      <h2 class="section-title">Histórico de vendas</h2>
+      <div class="lista" id="listaVendas"></div>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-faturamento">
+    <div class="toolbar">
+      <h2 class="section-title" style="margin:0;">Faturamento e lucro</h2>
+      <select id="faturamentoPeriodo" aria-label="Período do faturamento">
+        <option value="dia">Hoje</option>
+        <option value="mes">Este mês</option>
+        <option value="trimestre">Este trimestre</option>
+        <option value="semestre">Este semestre</option>
+        <option value="ano">Este ano</option>
+        <option value="personalizado">Período personalizado</option>
+      </select>
+      <div id="faturamentoPersonalizado" class="periodo-personalizado" style="display:none;">
+        <label class="field">De<input type="date" id="faturamentoDataInicial"></label>
+        <label class="field">Até<input type="date" id="faturamentoDataFinal"></label>
+      </div>
+    </div>
+    <div class="stat-row" id="faturamentoStatRow"></div>
+    <div class="glass" style="padding:18px;">
+      <div class="lista" id="listaFaturamento"></div>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-caixa">
+    <div class="glass" style="padding:18px;">
+      <div class="toolbar">
+        <h2 class="section-title" style="margin:0;">Caixa</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn-primary" id="abrirCaixaBtn" style="padding:9px 16px; font-size:12px;">Abrir caixa</button>
+          <button class="btn-ghost" id="fecharCaixaBtn" style="padding:9px 16px; font-size:12px;">Fechar caixa</button>
+        </div>
+      </div>
+      <div class="stat-row" id="caixaStatRow"></div>
+      <div class="lista" id="listaCaixaMovimentacoes"></div>
+    </div>
+  </section>
+
+  <!-- CONFIGURAÇÕES -->
+  <section class="tab" id="tab-config">
+    <div class="glass" style="padding:18px;">
+      <h2 class="section-title">Tema do sistema</h2>
+      <div class="form-card tema-config-card">
+        <label class="field">Tema visual
+          <select id="temaVisualSelect">
+            <option value="belo-frango-2026">Belo Frango PDV 2026</option>
+            <option value="monocromatico">Monocromático</option>
+          </select>
+        </label>
+        <button id="efeito3dToggleBtn" class="btn-ghost" type="button" aria-pressed="true">Desativar efeito 3D</button>
+        <p class="section-hint">O modo claro/escuro continua disponível no botão do cabeçalho.</p>
+      </div>
+      <h2 class="section-title">QR Codes de pagamento</h2>
+      <div class="form-card" style="grid-template-columns:1fr 1fr;">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <label class="field">QR Code do Pix
+            <input type="file" id="qrPixInput" accept="image/*">
+          </label>
+          <img id="qrPixPreview" style="max-width:180px; border-radius:12px; display:none;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <label class="field">QR Code do PicPay
+            <input type="file" id="qrPicPayInput" accept="image/*">
+          </label>
+          <img id="qrPicPayPreview" style="max-width:180px; border-radius:12px; display:none;">
+        </div>
+      </div>
+
+      <h2 class="section-title">Backup e restauração</h2>
+      <div class="form-card" style="display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+        <button class="btn-primary" id="backupExportBtn" type="button">Baixar backup</button>
+        <button class="btn-ghost" id="backupImportBtn" type="button">Restaurar backup</button>
+        <input type="file" id="backupImportInput" accept="application/json" style="display:none;">
+        <p class="section-hint" style="margin:0;">Exporta o estado atual do PDV em JSON e permite restaurar em caso de falha ou migração.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+PayloadTooLargeError: request entity too large
+    at readStream (C:\Users\User\belo-frango-pdv\node_modules\raw-body\index.js:163:17)
+    at getRawBody (C:\Users\User\belo-frango-pdv\node_modules\raw-body\index.js:116:12)
+    at read (C:\Users\User\belo-frango-pdv\node_modules\body-parser\lib\read.js:79:3)
+    at jsonParser (C:\Users\User\belo-frango-pdv\node_modules\body-parser\lib\types\json.js:142:5)
+    at Layer.handle [as handle_request] (C:\Users\User\belo-frango-pdv\node_modules\express\lib\router\layer.js:95:5)
+    at trim_prefix (C:\Users\User\belo-frango-pdv\node_modules\express\lib\router\index.js:328:13)
+    at C:\Users\User\belo-frango-pdv\node_modules\express\lib\router\index.js:286:9
+    at router.process_params (C:\Users\User\belo-frango-pdv\node_modules\express\lib\router\index.js:346:12)
+    at next (C:\Users\User\belo-frango-pdv\node_modules\express\lib\router\index.js:280:10)
+    at expressInit (C:\Users\User\belo-frango-pdv\node_modules\express\lib\middleware\init.js:40:5)
