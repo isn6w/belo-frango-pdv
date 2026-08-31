@@ -3,7 +3,7 @@ services:
     name: belo-frango-pdv
     env: node
     plan: starter
-    buildCommand: npm install
+    buildCommand: rm -rf node_modules && npm install
     startCommand: npm start
     disk:
       name: belo-frango-data
