@@ -315,21 +315,10 @@ async function loadAll(){
       await saveCaixa();
     }
 
-    const padraoYuri = { id: uid(), nome: 'Yuri', username: 'yuri', senha: '123' };
-    const vendedoresNormalizados = (state.vendedores || []).map(v => ({
-      ...v,
-      nome: v.nome || 'Vendedor',
-      username: (v.username || '').trim().toLowerCase() || 'vendedor',
-      senha: v.senha || '123'
-    }));
-    const usuarioExiste = vendedoresNormalizados.some(v => ['yuri', 'yurisnow', 'snw.'].includes((v.username || '').toLowerCase()));
-    state.vendedores = usuarioExiste ? vendedoresNormalizados : [padraoYuri, ...vendedoresNormalizados];
-    if (!state.vendedores.some(v => (v.username || '').toLowerCase() === 'yuri')) {
-      state.vendedores.unshift({ ...padraoYuri, id: uid() });
-    }
+    state.vendedores = vendedoresFixos();
 
     if(!p) await saveProdutos();
-    if(!vd || !usuarioExiste) await saveVendedores();
+    await saveVendedores();
     if(!caixa) await saveCaixa();
   }catch(e){
     console.error('Erro ao carregar dados', e);
@@ -433,9 +422,13 @@ async function saveConfigPagamentos(){ try{ await window.storage.set('configPaga
 async function saveNotasImportadas(){ try{ await window.storage.set('notasImportadas', JSON.stringify(state.notasImportadas), true); }catch(e){ console.error(e); } }
 async function saveCaixa(){ try{ await window.storage.set('caixa', JSON.stringify(state.caixa), true); }catch(e){ console.error(e); } }
 function seedVendedores(){
+  return vendedoresFixos();
+}
+function vendedoresFixos(){
   return [
-    { id: uid(), nome:'Yuri Snow', username:'yurisnow', senha:'123' },
-    { id: uid(), nome:'Yuri', username:'yuri', senha:'123' }
+    { id:'vendedor-yuri', nome:'Yuri', username:'yuri', senha:'yuri2026' },
+    { id:'vendedor-vanessa', nome:'Vanessa', username:'vanessa', senha:'vanessa2026' },
+    { id:'vendedor-flavio', nome:'Flavio', username:'flavio', senha:'flavio2026' }
   ];
 }
 

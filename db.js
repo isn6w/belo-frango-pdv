@@ -240,18 +240,24 @@ function initializeSqlite() {
       )
     `);
 
-    db.get('SELECT id FROM usuarios WHERE username = ?', ['yuri'], (err, row) => {
-      if (!err && !row) {
-        const bcrypt = require('bcrypt');
-        const senhaHash = bcrypt.hashSync('123', 10);
-        db.run(
-          'INSERT INTO usuarios (username, password, nome, cargo) VALUES (?, ?, ?, ?)',
-          ['yuri', senhaHash, 'Yuri', 'vendedor'],
-          (insertErr) => {
-            if (insertErr) console.log('Erro ao criar usuário padrão:', insertErr.message);
-          }
-        );
-      }
+    db.get('SELECT valor FROM app_storage WHERE chave = ?', ['setup_usuarios_historico_v1'], (err, row) => {
+      if (err || row) return;
+      const bcrypt = require('bcrypt');
+      const usuarios = [
+        ['yuri', 'yuri2026', 'Yuri'],
+        ['vanessa', 'vanessa2026', 'Vanessa'],
+        ['flavio', 'flavio2026', 'Flavio']
+      ];
+      db.serialize(() => {
+        db.run('DELETE FROM itens_venda');
+        db.run('DELETE FROM vendas');
+        db.run('DELETE FROM usuarios');
+        db.run('DELETE FROM app_storage WHERE chave IN (?, ?, ?, ?, ?, ?)', ['vendas', 'boletos', 'notasImportadas', 'caixa', 'vendedores', 'pdv_snapshot']);
+        usuarios.forEach(([username, senha, nome]) => {
+          db.run('INSERT INTO usuarios (username, password, nome, cargo) VALUES (?, ?, ?, ?)', [username, bcrypt.hashSync(senha, 10), nome, 'vendedor']);
+        });
+        db.run('INSERT INTO app_storage (chave, valor) VALUES (?, ?)', ['setup_usuarios_historico_v1', 'concluido']);
+      });
     });
 
     const configs = [
@@ -389,14 +395,24 @@ async function initializePostgres() {
       )
     `);
 
-    const usuario = await client.query('SELECT id FROM usuarios WHERE username = $1', ['yuri']);
-    if (usuario.rowCount === 0) {
+    const setup = await client.query('SELECT valor FROM app_storage WHERE chave = $1', ['setup_usuarios_historico_v1']);
+    if (setup.rowCount === 0) {
       const bcrypt = require('bcrypt');
-      const senhaHash = bcrypt.hashSync('123', 10);
-      await client.query(
-        'INSERT INTO usuarios (username, password, nome, cargo) VALUES ($1, $2, $3, $4)',
-        ['yuri', senhaHash, 'Yuri', 'vendedor']
-      );
+      await client.query('BEGIN');
+      try {
+        await client.query('DELETE FROM itens_venda');
+        await client.query('DELETE FROM vendas');
+        await client.query('DELETE FROM usuarios');
+        await client.query("DELETE FROM app_storage WHERE chave IN ('vendas', 'boletos', 'notasImportadas', 'caixa', 'vendedores', 'pdv_snapshot')");
+        for (const [username, senha, nome] of [['yuri', 'yuri2026', 'Yuri'], ['vanessa', 'vanessa2026', 'Vanessa'], ['flavio', 'flavio2026', 'Flavio']]) {
+          await client.query('INSERT INTO usuarios (username, password, nome, cargo) VALUES ($1, $2, $3, $4)', [username, bcrypt.hashSync(senha, 10), nome, 'vendedor']);
+        }
+        await client.query('INSERT INTO app_storage (chave, valor) VALUES ($1, $2)', ['setup_usuarios_historico_v1', 'concluido']);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
     }
 
     const configs = [
