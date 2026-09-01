@@ -1181,6 +1181,167 @@ async function exportarBackupPDV(){
   toast('Backup do PDV exportado.');
 }
 
+let backupMensalContexto = null;
+
+function mesAtualBackup(){
+  return new Date().toISOString().slice(0, 7);
+}
+
+function dataNoMes(valor, mes){
+  return typeof valor === 'string' && valor.slice(0, 7) === mes;
+}
+
+function dadosBackupMensal(mes){
+  const vendas = state.vendas.filter(v => dataNoMes(v.data, mes));
+  const idsVendas = new Set(vendas.map(v => String(v.id)));
+  const notas = state.notasImportadas.filter(n => dataNoMes(n.importadaEm, mes) || dataNoMes(n.emissao, mes));
+  const idsNotas = new Set(notas.map(n => String(n.id)));
+  const boletos = state.boletos.filter(b => idsVendas.has(String(b.vendaId)) || idsNotas.has(String(b.notaId)) || dataNoMes(b.criadoEm, mes) || dataNoMes(b.pagoEm, mes));
+  const movimentacoesCaixa = (state.caixa.movimentacoes || []).filter(m => dataNoMes(m.data, mes));
+  const itens = vendas.flatMap(v => (v.itens || []).map(item => ({ ...item, vendaId: v.id, codigoVenda: v.codigo })));
+  const idsProdutos = new Set([
+    ...itens.map(item => String(item.produtoId || item.produtoId === 0 ? item.produtoId : '')),
+    ...notas.flatMap(n => (n.movimentos || []).map(item => String(item.produtoId || '')))
+  ].filter(Boolean));
+  const idsClientes = new Set(vendas.map(v => String(v.clienteId || '')).filter(Boolean));
+  const nomesVendedores = new Set(vendas.map(v => v.vendedorNome).filter(Boolean));
+  const produtos = state.produtos.filter(p => idsProdutos.has(String(p.id)));
+  const clientes = state.clientes.filter(c => idsClientes.has(String(c.id)));
+  const vendedores = state.vendedores.filter(v => nomesVendedores.has(v.nome));
+  const receita = vendas.filter(v => !v.cancelada).reduce((total, v) => total + Number(v.total || 0), 0);
+  const custo = itens.filter(item => !vendas.find(v => String(v.id) === String(item.vendaId))?.cancelada).reduce((total, item) => total + Number(item.qtd || 0) * Number(item.custo || 0), 0);
+  const resumo = {
+    mes, vendas: vendas.length, vendasValidas: vendas.filter(v => !v.cancelada).length,
+    receita, custo, lucroBruto: receita - custo,
+    totalNotas: notas.reduce((total, n) => total + Number(n.valor || 0), 0),
+    totalBoletos: boletos.reduce((total, b) => total + Number(b.valor || 0), 0),
+    entradasCaixa: movimentacoesCaixa.filter(m => Number(m.valor) >= 0).reduce((total, m) => total + Number(m.valor || 0), 0),
+    saidasCaixa: movimentacoesCaixa.filter(m => Number(m.valor) < 0).reduce((total, m) => total + Math.abs(Number(m.valor || 0)), 0),
+    gastos: [],
+    observacaoGastos: 'O PDV ainda não possui cadastro separado de despesas; gastos não foram informados.'
+  };
+  return {
+    vendas, itens, notas, boletos, movimentacoesCaixa, produtos, clientes, vendedores, resumo,
+    idsVendas: [...idsVendas], idsNotas: [...idsNotas], idsBoletos: boletos.map(b => String(b.id)),
+    fingerprint: JSON.stringify({ vendas: [...idsVendas].sort(), notas: [...idsNotas].sort() })
+  };
+}
+
+async function sha256Texto(texto){
+  const bytes = new TextEncoder().encode(texto);
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(hash)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function criarZipMensal(mes, dados){
+  if (typeof JSZip === 'undefined') throw new Error('Biblioteca ZIP indisponível.');
+  const zip = new JSZip();
+  const arquivos = {
+    'vendas.json': dados.vendas,
+    'itens-vendidos.json': dados.itens,
+    'notas-importadas.json': dados.notas,
+    'boletos.json': dados.boletos,
+    'movimentacoes-caixa.json': dados.movimentacoesCaixa,
+    'produtos-referenciados.json': dados.produtos,
+    'estoque-atual.json': state.produtos,
+    'clientes-referenciados.json': dados.clientes,
+    'vendedores-referenciados.json': dados.vendedores,
+    'resumo-financeiro.json': dados.resumo,
+    'gastos.json': dados.resumo.gastos
+  };
+  const textos = {};
+  for (const [nome, valor] of Object.entries(arquivos)) {
+    textos[nome] = JSON.stringify(valor, null, 2);
+    zip.file(nome, textos[nome]);
+  }
+  const checksums = {};
+  for (const [nome, texto] of Object.entries(textos)) checksums[nome] = await sha256Texto(texto);
+  const manifest = {
+    formato: 'belo-frango-backup-mensal-v1', mes, exportadoEm: new Date().toISOString(),
+    arquivos: Object.keys(textos), idsVendas: dados.idsVendas, idsNotas: dados.idsNotas, idsBoletos: dados.idsBoletos,
+    verificacao: 'checksums.json deve ser conferido antes de qualquer limpeza.'
+  };
+  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+  zip.file('checksums.json', JSON.stringify(checksums, null, 2));
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+}
+
+async function verificarZipMensal(blob, mes, dados){
+  const zip = await JSZip.loadAsync(blob);
+  const manifest = JSON.parse(await zip.file('manifest.json').async('string'));
+  const checksums = JSON.parse(await zip.file('checksums.json').async('string'));
+  if (manifest.mes !== mes || manifest.formato !== 'belo-frango-backup-mensal-v1') throw new Error('Manifesto do ZIP inválido.');
+  for (const nome of manifest.arquivos) {
+    const arquivo = zip.file(nome);
+    if (!arquivo) throw new Error(`Arquivo ausente no ZIP: ${nome}`);
+    const texto = await arquivo.async('string');
+    if (await sha256Texto(texto) !== checksums[nome]) throw new Error(`Checksum inválido: ${nome}`);
+  }
+  if (JSON.stringify([...manifest.idsVendas].sort()) !== JSON.stringify([...dados.idsVendas].sort())) throw new Error('IDs de vendas não conferem.');
+  return true;
+}
+
+function atualizarResumoBackupMensal(dados, etapa){
+  document.getElementById('backupMensalEtapa').textContent = etapa;
+  document.getElementById('backupMensalResumo').innerHTML = `<div class="row-card"><div class="main-info"><b>Mês ${dados.resumo.mes}</b><small>${dados.vendas.length} venda(s) · ${dados.itens.length} item(ns) · ${dados.notas.length} nota(s) · ${dados.movimentacoesCaixa.length} movimentação(ões)</small></div><strong>${fmt(dados.resumo.receita)}</strong></div><div class="row-card"><div class="main-info"><b>Resultado financeiro</b><small>Receita · custo · lucro bruto · entradas e saídas do caixa</small></div><strong>Lucro ${fmt(dados.resumo.lucroBruto)}</strong></div>`;
+}
+
+async function abrirBackupMensal(){
+  const mes = document.getElementById('backupMensalMes').value;
+  if(!/^\d{4}-\d{2}$/.test(mes)){ toast('Selecione um mês válido.'); return; }
+  await sincronizarComServidor();
+  const dados = dadosBackupMensal(mes);
+  backupMensalContexto = { mes, dados, blob: null, verificado: false };
+  atualizarResumoBackupMensal(dados, 'Etapa 1 de 3: confira o período e as quantidades antes de continuar.');
+  document.getElementById('backupMensalConfirmacaoWrap').style.display = 'none';
+  document.getElementById('backupMensalConfirmacao').value = '';
+  document.getElementById('backupMensalConfirmar').textContent = 'Gerar ZIP e verificar';
+  document.getElementById('backupMensalModal').classList.add('show');
+}
+
+async function confirmarBackupMensal(){
+  const contexto = backupMensalContexto;
+  if(!contexto) return;
+  const botao = document.getElementById('backupMensalConfirmar');
+  botao.disabled = true;
+  try {
+    if(!contexto.verificado){
+      contexto.blob = await criarZipMensal(contexto.mes, contexto.dados);
+      await verificarZipMensal(contexto.blob, contexto.mes, contexto.dados);
+      contexto.verificado = true;
+      atualizarResumoBackupMensal(contexto.dados, 'Etapa 2 de 3: ZIP gerado e verificado com sucesso. A limpeza ainda não foi feita.');
+      document.getElementById('backupMensalConfirmacaoWrap').style.display = 'block';
+      botao.textContent = 'Baixar ZIP e limpar mês';
+      return;
+    }
+    if(document.getElementById('backupMensalConfirmacao').value.trim() !== contexto.mes){ toast('Digite exatamente o mês exibido para confirmar.'); return; }
+    await sincronizarComServidor();
+    const dadosAtuais = dadosBackupMensal(contexto.mes);
+    if(dadosAtuais.fingerprint !== contexto.dados.fingerprint){ toast('Há novas vendas ou notas neste mês. Gere um novo backup antes de limpar.'); return; }
+    const url = URL.createObjectURL(contexto.blob);
+    const link = document.createElement('a'); link.href = url; link.download = `belo-frango-backup-${contexto.mes}.zip`; link.click(); URL.revokeObjectURL(url);
+    const idsVendas = new Set(contexto.dados.idsVendas);
+    const idsNotas = new Set(contexto.dados.idsNotas);
+    state.vendas = state.vendas.filter(v => !idsVendas.has(String(v.id)));
+    state.notasImportadas = state.notasImportadas.filter(n => !idsNotas.has(String(n.id)));
+    state.boletos = state.boletos.filter(b => !idsVendas.has(String(b.vendaId)) && !idsNotas.has(String(b.notaId)) && !dataNoMes(b.criadoEm, contexto.mes) && !dataNoMes(b.pagoEm, contexto.mes));
+    state.caixa.movimentacoes = (state.caixa.movimentacoes || []).filter(m => !dataNoMes(m.data, contexto.mes));
+    await Promise.all([saveVendas(), saveNotasImportadas(), saveBoletos(), saveCaixa()]);
+    atualizarResumoBackupMensal(contexto.dados, 'Etapa 3 de 3 concluída: ZIP baixado e histórico do mês removido com sucesso.');
+    document.getElementById('backupMensalModal').classList.remove('show');
+    renderHistorico(); renderFaturamento(); renderBoletos(); renderCaixa(); renderVendasRecentes();
+    toast('Backup mensal baixado e mês limpo.');
+  } catch (erro) {
+    console.error('Erro no backup mensal', erro);
+    toast(`Backup mensal interrompido: ${erro.message}`);
+  } finally { botao.disabled = false; }
+}
+
+document.getElementById('backupMensalMes').value = mesAtualBackup();
+document.getElementById('backupMensalBtn').addEventListener('click', abrirBackupMensal);
+document.getElementById('backupMensalConfirmar').addEventListener('click', confirmarBackupMensal);
+document.getElementById('backupMensalCancelar').addEventListener('click', () => document.getElementById('backupMensalModal').classList.remove('show'));
+
 async function restaurarBackupPDV(arquivo){
   if(!arquivo) return;
   try{
