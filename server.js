@@ -3,10 +3,12 @@ const path = require('path');
 const session = require('express-session');
 const { db, initialize } = require('./db');
 const bcrypt = require('bcrypt');
+const { EventEmitter } = require('events');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const storageEvents = new EventEmitter();
 
 if (isServerlessRuntime) {
   app.set('trust proxy', 1);
@@ -459,6 +461,26 @@ app.get('/api/storage/:chave', (req, res) => {
   });
 });
 
+app.get('/api/pdv/events', (req, res) => {
+  res.set({
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Content-Type': 'text/event-stream'
+  });
+  res.flushHeaders();
+  res.write(': conectado\n\n');
+
+  const enviarEvento = chave => {
+    res.write(`event: storage\ndata: ${JSON.stringify({ chave })}\n\n`);
+  };
+  storageEvents.on('storage', enviarEvento);
+  const keepAlive = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(keepAlive);
+    storageEvents.off('storage', enviarEvento);
+  });
+});
+
 app.get('/api/pdv/snapshot', (req, res) => {
   db.get('SELECT valor FROM app_storage WHERE chave = ?', ['pdv_snapshot'], (err, row) => {
     if (err) return res.status(500).json({ error: 'Erro ao carregar snapshot do PDV' });
@@ -473,15 +495,39 @@ app.get('/api/pdv/snapshot', (req, res) => {
 
 app.put('/api/storage/:chave', (req, res) => {
   if (typeof req.body.valor !== 'string') return res.status(400).json({ error: 'Valor inválido' });
-  db.run(
+  const salvar = valor => db.run(
     `INSERT INTO app_storage (chave, valor, atualizado_em) VALUES (?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor, atualizado_em = CURRENT_TIMESTAMP`,
-    [req.params.chave, req.body.valor],
+    [req.params.chave, valor],
     err => {
       if (err) return res.status(500).json({ error: 'Erro ao salvar dados' });
+      storageEvents.emit('storage', req.params.chave);
       res.json({ success: true });
     }
   );
+
+  if (req.params.chave !== 'vendas') return salvar(req.body.valor);
+
+  let vendasRecebidas;
+  try {
+    vendasRecebidas = JSON.parse(req.body.valor);
+    if (!Array.isArray(vendasRecebidas)) return salvar(req.body.valor);
+  } catch (err) {
+    return res.status(400).json({ error: 'Valor inválido' });
+  }
+
+  db.get('SELECT valor FROM app_storage WHERE chave = ?', ['vendas'], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Erro ao carregar dados atuais' });
+    let vendasAtuais = [];
+    try {
+      const valorAtual = row && JSON.parse(row.valor);
+      if (Array.isArray(valorAtual)) vendasAtuais = valorAtual;
+    } catch (erro) {}
+
+    const porId = new Map(vendasAtuais.map(venda => [String(venda.id), venda]));
+    vendasRecebidas.forEach(venda => porId.set(String(venda.id), venda));
+    salvar(JSON.stringify([...porId.values()]));
+  });
 });
 
 app.put('/api/pdv/snapshot', (req, res) => {

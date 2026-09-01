@@ -50,6 +50,7 @@ let state = {
   caixa: normalizarCaixaPadrao(),
   loaded: false
 };
+let ultimaSincronizacaoRemota = null;
 
 const fmt = (v) => 'R$ ' + v.toFixed(2).replace('.', ',');
 
@@ -327,16 +328,6 @@ async function loadAll(){
       state.vendedores.unshift({ ...padraoYuri, id: uid() });
     }
 
-    const ultimoLogin = snapshotData && snapshotData.ultimoLogin ? snapshotData.ultimoLogin : null;
-    if (ultimoLogin) {
-      const vendedorRestaurado = state.vendedores.find(v =>
-        String(v.id) === String(ultimoLogin.id) ||
-        v.username === ultimoLogin.username ||
-        v.nome === ultimoLogin.nome
-      );
-      if (vendedorRestaurado) state.vendedorLogado = vendedorRestaurado;
-    }
-
     if(!p) await saveProdutos();
     if(!vd || !usuarioExiste) await saveVendedores();
     if(!caixa) await saveCaixa();
@@ -372,20 +363,75 @@ function obterSnapshotPDV(){
   };
 }
 
-async function saveSnapshotPDV(){
-  try{
-    await window.storage.set('pdv_snapshot', JSON.stringify(obterSnapshotPDV()), true);
-  }catch(e){ console.error('Erro ao salvar snapshot do PDV', e); }
+function aplicarSnapshotServidor(snapshotData){
+  if (!snapshotData || typeof snapshotData !== 'object') return;
+
+  const chavesPersistidas = [
+    'produtos', 'clientes', 'vendas', 'boletos', 'vendedores',
+    'notasImportadas', 'configPagamentos', 'caixa', 'ultimoLogin'
+  ];
+
+  chavesPersistidas.forEach(chave => {
+    if (snapshotData[chave] !== undefined) {
+      if (chave === 'caixa') {
+        state.caixa = normalizarCaixaPadrao(snapshotData.caixa || {});
+      } else {
+        state[chave] = snapshotData[chave];
+      }
+    }
+  });
+
+  if (snapshotData.atualizadoEm) {
+    ultimaSincronizacaoRemota = snapshotData.atualizadoEm;
+  }
+
+  if (snapshotData.ultimoLogin) {
+    const vendedorRestaurado = state.vendedores.find(v =>
+      String(v.id) === String(snapshotData.ultimoLogin.id) ||
+      v.username === snapshotData.ultimoLogin.username ||
+      v.nome === snapshotData.ultimoLogin.nome
+    );
+    if (vendedorRestaurado) state.vendedorLogado = vendedorRestaurado;
+  }
 }
 
-async function saveProdutos(){ try{ await window.storage.set('produtos', JSON.stringify(state.produtos), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
-async function saveClientes(){ try{ await window.storage.set('clientes', JSON.stringify(state.clientes), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
-async function saveVendas(){ try{ await window.storage.set('vendas', JSON.stringify(state.vendas), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
-async function saveBoletos(){ try{ await window.storage.set('boletos', JSON.stringify(state.boletos), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
-async function saveVendedores(){ try{ await window.storage.set('vendedores', JSON.stringify(state.vendedores), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
-async function saveConfigPagamentos(){ try{ await window.storage.set('configPagamentos', JSON.stringify(state.configPagamentos), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
-async function saveNotasImportadas(){ try{ await window.storage.set('notasImportadas', JSON.stringify(state.notasImportadas), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
-async function saveCaixa(){ try{ await window.storage.set('caixa', JSON.stringify(state.caixa), true); await saveSnapshotPDV(); }catch(e){ console.error(e); } }
+async function sincronizarComServidor(){
+  try {
+    const chaves = ['produtos', 'clientes', 'vendas', 'boletos', 'vendedores', 'configPagamentos', 'notasImportadas', 'caixa'];
+    const respostas = await Promise.all(chaves.map(chave => window.storage.get(chave, true).catch(() => null)));
+    chaves.forEach((chave, indice) => {
+      const resposta = respostas[indice];
+      if (!resposta || typeof resposta.value !== 'string') return;
+      try {
+        const valor = JSON.parse(resposta.value);
+        state[chave] = chave === 'caixa' ? normalizarCaixaPadrao(valor) : valor;
+      } catch (erro) {
+        console.warn(`Dados remotos inválidos em ${chave}`, erro);
+      }
+    });
+    renderProdutos(); renderCart(); renderEstoque(); renderClientes(); renderVendedores();
+    renderConfigPagamentos(); renderVendasRecentes(); renderBoletos(); renderNotasImportadas();
+    renderHistorico(); renderFaturamento(); renderCaixa();
+    if (state.vendedorLogado) {
+      atualizarPerfilVendedorLogado?.();
+    }
+  } catch (erro) {
+    console.warn('Falha ao sincronizar snapshot do servidor', erro);
+  }
+}
+
+async function saveSnapshotPDV(){
+  return Promise.resolve();
+}
+
+async function saveProdutos(){ try{ await window.storage.set('produtos', JSON.stringify(state.produtos), true); }catch(e){ console.error(e); } }
+async function saveClientes(){ try{ await window.storage.set('clientes', JSON.stringify(state.clientes), true); }catch(e){ console.error(e); } }
+async function saveVendas(){ try{ await window.storage.set('vendas', JSON.stringify(state.vendas), true); }catch(e){ console.error(e); } }
+async function saveBoletos(){ try{ await window.storage.set('boletos', JSON.stringify(state.boletos), true); }catch(e){ console.error(e); } }
+async function saveVendedores(){ try{ await window.storage.set('vendedores', JSON.stringify(state.vendedores), true); }catch(e){ console.error(e); } }
+async function saveConfigPagamentos(){ try{ await window.storage.set('configPagamentos', JSON.stringify(state.configPagamentos), true); }catch(e){ console.error(e); } }
+async function saveNotasImportadas(){ try{ await window.storage.set('notasImportadas', JSON.stringify(state.notasImportadas), true); }catch(e){ console.error(e); } }
+async function saveCaixa(){ try{ await window.storage.set('caixa', JSON.stringify(state.caixa), true); }catch(e){ console.error(e); } }
 function seedVendedores(){
   return [
     { id: uid(), nome:'Yuri Snow', username:'yurisnow', senha:'123' },
@@ -2463,6 +2509,12 @@ function registrarServiceWorker(){
   });
 }
 
+function iniciarSincronizacaoEmTempoReal(){
+  if (!('EventSource' in window)) return;
+  const eventos = new EventSource('/api/pdv/events');
+  eventos.addEventListener('storage', () => sincronizarComServidor());
+}
+
 /* ---------------- Init ---------------- */
 async function init(){
   await initTheme();
@@ -2480,6 +2532,7 @@ async function init(){
   setupVisualMotion();
   aplicarAtalhosTeclado();
   registrarServiceWorker();
+  iniciarSincronizacaoEmTempoReal();
   document.getElementById('loginUser').focus();
 
   window.addEventListener('beforeunload', () => {
@@ -2491,6 +2544,12 @@ async function init(){
       saveSnapshotPDV();
     }
   }, 15000);
+
+  setInterval(() => {
+    if (state.loaded && document.getElementById('loginScreen').style.display === 'none') {
+      sincronizarComServidor();
+    }
+  }, 5000);
 }
 init();
 

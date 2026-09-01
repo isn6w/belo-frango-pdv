@@ -2,17 +2,13 @@ services:
   - type: web
     name: belo-frango-pdv
     env: node
-    plan: starter
+    plan: free
     buildCommand: rm -rf node_modules && npm install --build-from-source
     startCommand: npm start
-    disk:
-      name: belo-frango-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DB_PATH
-        value: /var/data/belo-frango.db
+      - key: DATABASE_URL
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
