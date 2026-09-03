@@ -10,6 +10,11 @@ const PORT = process.env.PORT || 3000;
 const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
 const storageEvents = new EventEmitter();
 
+// Validar variáveis de ambiente críticas
+if (!process.env.SESSION_SECRET) {
+  throw new Error('SESSION_SECRET é obrigatório. Configure a variável de ambiente antes de iniciar o servidor.');
+}
+
 if (isServerlessRuntime) {
   app.set('trust proxy', 1);
 }
@@ -21,7 +26,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Configuração de sessão
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'belo-frango-super-mercearia-2024',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -31,6 +36,29 @@ app.use(session({
     maxAge: 3600000
   }
 }));
+
+// Middleware de autenticação
+function ensureAuth(req, res, next) {
+  if (req.session && req.session.usuario) {
+    return next();
+  }
+  res.status(401).json({ error: 'Não autenticado. Faça login primeiro.' });
+}
+
+// Middleware de validação de entrada
+function validateInput(req, res, next) {
+  if (req.body && typeof req.body === 'object') {
+    // Remover strings muito longas (potencial DoS)
+    for (const key in req.body) {
+      if (typeof req.body[key] === 'string' && req.body[key].length > 5000) {
+        return res.status(400).json({ error: 'Campo muito grande.' });
+      }
+    }
+  }
+  next();
+}
+
+app.use(validateInput);
 
 // Rotas da API
 
@@ -90,7 +118,7 @@ app.get('/api/usuario/logado', (req, res) => {
 });
 
 // Rotas de Clientes
-app.get('/api/clientes', (req, res) => {
+app.get('/api/clientes', ensureAuth, (req, res) => {
   const { search, ativo = 1 } = req.query;
   let sql = 'SELECT * FROM clientes WHERE ativo = ?';
   const params = [ativo];
@@ -110,7 +138,7 @@ app.get('/api/clientes', (req, res) => {
   });
 });
 
-app.get('/api/clientes/:id', (req, res) => {
+app.get('/api/clientes/:id', ensureAuth, (req, res) => {
   db.get('SELECT * FROM clientes WHERE id = ?', [req.params.id], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Erro ao buscar cliente' });
@@ -122,7 +150,7 @@ app.get('/api/clientes/:id', (req, res) => {
   });
 });
 
-app.post('/api/clientes', (req, res) => {
+app.post('/api/clientes', ensureAuth, (req, res) => {
   const { codigo, nome, cpf_cnpj, telefone, email, endereco } = req.body;
 
   db.run(
@@ -138,7 +166,7 @@ app.post('/api/clientes', (req, res) => {
   );
 });
 
-app.put('/api/clientes/:id', (req, res) => {
+app.put('/api/clientes/:id', ensureAuth, (req, res) => {
   const { nome, cpf_cnpj, telefone, email, endereco, ativo } = req.body;
 
   db.run(
@@ -156,7 +184,7 @@ app.put('/api/clientes/:id', (req, res) => {
 });
 
 // Rotas de Produtos
-app.get('/api/produtos', (req, res) => {
+app.get('/api/produtos', ensureAuth, (req, res) => {
   const { search, ativo = 1, categoria } = req.query;
   let sql = 'SELECT * FROM produtos WHERE ativo = ?';
   const params = [ativo];
@@ -181,7 +209,7 @@ app.get('/api/produtos', (req, res) => {
   });
 });
 
-app.get('/api/produtos/:id', (req, res) => {
+app.get('/api/produtos/:id', ensureAuth, (req, res) => {
   db.get('SELECT * FROM produtos WHERE id = ?', [req.params.id], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Erro ao buscar produto' });
@@ -193,7 +221,7 @@ app.get('/api/produtos/:id', (req, res) => {
   });
 });
 
-app.post('/api/produtos', (req, res) => {
+app.post('/api/produtos', ensureAuth, (req, res) => {
   const { codigo, nome, descricao, categoria, preco_venda, preco_custo, quantidade_estoque, unidade, estoque_minimo } = req.body;
 
   db.run(
@@ -211,7 +239,7 @@ app.post('/api/produtos', (req, res) => {
   );
 });
 
-app.put('/api/produtos/:id', (req, res) => {
+app.put('/api/produtos/:id', ensureAuth, (req, res) => {
   const { nome, descricao, categoria, preco_venda, preco_custo, quantidade_estoque, unidade, estoque_minimo, ativo } = req.body;
 
   db.run(
@@ -231,7 +259,7 @@ app.put('/api/produtos/:id', (req, res) => {
 });
 
 // Atualizar estoque após venda
-app.post('/api/produtos/atualizar-estoque', (req, res) => {
+app.post('/api/produtos/atualizar-estoque', ensureAuth, (req, res) => {
   const { items } = req.body; // Array de {id_produto, quantidade}
 
   const updatePromises = items.map(item => {
@@ -259,7 +287,7 @@ app.post('/api/produtos/atualizar-estoque', (req, res) => {
 });
 
 // Rotas de Vendas
-app.get('/api/vendas', (req, res) => {
+app.get('/api/vendas', ensureAuth, (req, res) => {
   const { data_inicial, data_final, cliente, vendedor } = req.query;
   let sql = `
     SELECT v.*,
@@ -310,7 +338,7 @@ app.get('/api/vendas', (req, res) => {
   });
 });
 
-app.get('/api/vendas/:id', (req, res) => {
+app.get('/api/vendas/:id', ensureAuth, (req, res) => {
   db.get('SELECT * FROM vendas WHERE id = ?', [req.params.id], (err, venda) => {
     if (err) {
       return res.status(500).json({ error: 'Erro ao buscar venda' });
@@ -329,67 +357,132 @@ app.get('/api/vendas/:id', (req, res) => {
   });
 });
 
-app.post('/api/vendas', (req, res) => {
+app.post('/api/vendas', ensureAuth, (req, res) => {
   const { id_vendedor, id_cliente, forma_pagamento, tipo_pagamento, itens, valor_total, valor_pago } = req.body;
+
+  // Validar entrada
+  if (!Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ error: 'Itens inválidos ou vazios.' });
+  }
+
+  if (!id_vendedor || typeof valor_total !== 'number' || typeof valor_pago !== 'number') {
+    return res.status(400).json({ error: 'Dados obrigatórios faltando ou inválidos.' });
+  }
+
+  if (valor_pago < valor_total) {
+    return res.status(400).json({ error: 'Valor pago menor que o total da venda.' });
+  }
 
   const data_hora = new Date();
   const codigo_venda = `V${data_hora.getFullYear()}${String(data_hora.getMonth() + 1).padStart(2, '0')}${String(data_hora.getDate()).padStart(2, '0')}${String(data_hora.getHours()).padStart(2, '0')}${String(data_hora.getMinutes()).padStart(2, '0')}${String(data_hora.getSeconds()).padStart(2, '0')}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`;
 
   const valor_troco = parseFloat((valor_pago - valor_total).toFixed(2));
 
-  db.run(
-    `INSERT INTO vendas (codigo_venda, id_vendedor, id_cliente, forma_pagamento, tipo_pagamento,
-     valor_total, valor_pago, valor_troco, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'finalizada')`,
-    [codigo_venda, id_vendedor, id_cliente || null, forma_pagamento, tipo_pagamento || '', valor_total, valor_pago],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-
-      const id_venda = this.lastID;
-
-      // Inserir itens da venda
-      const insertItem = db.prepare(
-        'INSERT INTO itens_venda (id_venda, id_produto, nome_produto, codigo_produto, quantidade, preco_unitario, total_item) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      );
-
-      itens.forEach(item => {
-        insertItem.run(id_venda, item.id_produto, item.nome_produto, item.codigo_produto, item.quantidade, item.preco_unitario, item.total_item);
-      });
-
-      insertItem.finalize();
-
-      // Atualizar estoque
-      const atualizarEstoque = db.prepare(
-        'UPDATE produtos SET quantidade_estoque = quantidade_estoque - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?'
-      );
-
-      itens.forEach(item => {
-        atualizarEstoque.run(item.quantidade, item.id_produto);
-      });
-
-      atualizarEstoque.finalize();
-
-      // Atualizar histórico de compras do cliente
-      if (id_cliente) {
-        db.run(
-          `UPDATE clientes SET
-           valor_total_compras = valor_total_compras + ?,
-           pontos = pontos + CAST(? AS INTEGER),
-           fiado = fiado + CASE WHEN ? = 'fiado' THEN ? ELSE 0 END,
-           atualizado_em = CURRENT_TIMESTAMP
-           WHERE id = ?`,
-          [valor_total, valor_total, forma_pagamento, forma_pagamento === 'fiado' ? valor_total : 0, id_cliente]
-        );
-      }
-
-      res.json({ success: true, id: id_venda, codigo_venda });
+  // Iniciar transação
+  db.run('BEGIN TRANSACTION', (err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Erro ao iniciar transação.' });
     }
-  );
+
+    // 1. Inserir venda
+    db.run(
+      `INSERT INTO vendas (codigo_venda, id_vendedor, id_cliente, forma_pagamento, tipo_pagamento,
+       valor_total, valor_pago, valor_troco, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'finalizada')`,
+      [codigo_venda, id_vendedor, id_cliente || null, forma_pagamento, tipo_pagamento || '', valor_total, valor_pago, valor_troco],
+      function(err) {
+        if (err) {
+          db.run('ROLLBACK', () => {
+            res.status(500).json({ error: 'Erro ao criar venda: ' + err.message });
+          });
+          return;
+        }
+
+        const id_venda = this.lastID;
+        let processados = 0;
+
+        // 2. Inserir itens da venda
+        itens.forEach((item, index) => {
+          db.run(
+            'INSERT INTO itens_venda (id_venda, id_produto, nome_produto, codigo_produto, quantidade, preco_unitario, total_item) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [id_venda, item.id_produto, item.nome_produto, item.codigo_produto, item.quantidade, item.preco_unitario, item.total_item],
+            (err) => {
+              if (err) {
+                db.run('ROLLBACK', () => {
+                  res.status(500).json({ error: 'Erro ao inserir item: ' + err.message });
+                });
+                return;
+              }
+
+              // 3. Atualizar estoque
+              db.run(
+                'UPDATE produtos SET quantidade_estoque = quantidade_estoque - ?, atualizado_em = CURRENT_TIMESTAMP WHERE id = ?',
+                [item.quantidade, item.id_produto],
+                (err) => {
+                  if (err) {
+                    db.run('ROLLBACK', () => {
+                      res.status(500).json({ error: 'Erro ao atualizar estoque: ' + err.message });
+                    });
+                    return;
+                  }
+
+                  processados++;
+
+                  // Após processar todos os itens, atualizar cliente e commitar
+                  if (processados === itens.length) {
+                    if (id_cliente) {
+                      db.run(
+                        `UPDATE clientes SET
+                         valor_total_compras = valor_total_compras + ?,
+                         pontos = pontos + CAST(? AS INTEGER),
+                         fiado = fiado + CASE WHEN ? = 'fiado' THEN ? ELSE 0 END,
+                         atualizado_em = CURRENT_TIMESTAMP
+                         WHERE id = ?`,
+                        [valor_total, valor_total, forma_pagamento, forma_pagamento === 'fiado' ? valor_total : 0, id_cliente],
+                        (err) => {
+                          if (err) {
+                            db.run('ROLLBACK', () => {
+                              res.status(500).json({ error: 'Erro ao atualizar cliente: ' + err.message });
+                            });
+                            return;
+                          }
+
+                          // Commitar transação
+                          db.run('COMMIT', (err) => {
+                            if (err) {
+                              db.run('ROLLBACK', () => {
+                                res.status(500).json({ error: 'Erro ao confirmar transação: ' + err.message });
+                              });
+                              return;
+                            }
+                            res.json({ success: true, id: id_venda, codigo_venda });
+                          });
+                        }
+                      );
+                    } else {
+                      // Commitar transação (sem cliente)
+                      db.run('COMMIT', (err) => {
+                        if (err) {
+                          db.run('ROLLBACK', () => {
+                            res.status(500).json({ error: 'Erro ao confirmar transação: ' + err.message });
+                          });
+                          return;
+                        }
+                        res.json({ success: true, id: id_venda, codigo_venda });
+                      });
+                    }
+                  }
+                }
+              );
+            }
+          );
+        });
+      }
+    );
+  });
 });
 
-app.post('/api/vendas/:id/cancelar', (req, res) => {
+app.post('/api/vendas/:id/cancelar', ensureAuth, (req, res) => {
   db.get('SELECT * FROM vendas WHERE id = ?', [req.params.id], (err, venda) => {
     if (err || !venda) {
       return res.status(404).json({ error: 'Venda não encontrada' });
@@ -423,7 +516,7 @@ app.post('/api/vendas/:id/cancelar', (req, res) => {
 });
 
 // Configurações
-app.get('/api/configuracoes', (req, res) => {
+app.get('/api/configuracoes', ensureAuth, (req, res) => {
   db.all('SELECT * FROM configuracoes', (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Erro ao buscar configurações' });
@@ -437,7 +530,7 @@ app.get('/api/configuracoes', (req, res) => {
   });
 });
 
-app.put('/api/configuracoes/:chave', (req, res) => {
+app.put('/api/configuracoes/:chave', ensureAuth, (req, res) => {
   const { chave } = req.params;
   const { valor, descricao } = req.body;
 
@@ -454,14 +547,14 @@ app.put('/api/configuracoes/:chave', (req, res) => {
 });
 
 // Persistência da interface do PDV. Os valores ficam no SQLite, não no navegador.
-app.get('/api/storage/:chave', (req, res) => {
+app.get('/api/storage/:chave', ensureAuth, (req, res) => {
   db.get('SELECT valor FROM app_storage WHERE chave = ?', [req.params.chave], (err, row) => {
     if (err) return res.status(500).json({ error: 'Erro ao carregar dados' });
     res.json({ value: row ? row.valor : null });
   });
 });
 
-app.get('/api/pdv/events', (req, res) => {
+app.get('/api/pdv/events', ensureAuth, (req, res) => {
   res.set({
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
@@ -481,7 +574,7 @@ app.get('/api/pdv/events', (req, res) => {
   });
 });
 
-app.get('/api/pdv/snapshot', (req, res) => {
+app.get('/api/pdv/snapshot', ensureAuth, (req, res) => {
   db.get('SELECT valor FROM app_storage WHERE chave = ?', ['pdv_snapshot'], (err, row) => {
     if (err) return res.status(500).json({ error: 'Erro ao carregar snapshot do PDV' });
     if (!row || !row.valor) return res.json({ value: null });
@@ -493,7 +586,7 @@ app.get('/api/pdv/snapshot', (req, res) => {
   });
 });
 
-app.put('/api/storage/:chave', (req, res) => {
+app.put('/api/storage/:chave', ensureAuth, (req, res) => {
   if (typeof req.body.valor !== 'string') return res.status(400).json({ error: 'Valor inválido' });
   const salvar = valor => db.run(
     `INSERT INTO app_storage (chave, valor, atualizado_em) VALUES (?, ?, CURRENT_TIMESTAMP)
@@ -530,7 +623,7 @@ app.put('/api/storage/:chave', (req, res) => {
   });
 });
 
-app.put('/api/pdv/snapshot', (req, res) => {
+app.put('/api/pdv/snapshot', ensureAuth, (req, res) => {
   if (!req.body || typeof req.body !== 'object') return res.status(400).json({ error: 'Payload inválido' });
   const valor = JSON.stringify(req.body);
   db.run(
