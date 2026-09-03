@@ -12,3 +12,6 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: RENDER
+        value: "true"
+

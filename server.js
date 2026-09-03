@@ -7,7 +7,7 @@ const { EventEmitter } = require('events');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const isRenderRuntime = Boolean(process.env.RENDER);
 const storageEvents = new EventEmitter();
 
 // Validar variáveis de ambiente críticas
@@ -15,7 +15,8 @@ if (!process.env.SESSION_SECRET) {
   throw new Error('SESSION_SECRET é obrigatório. Configure a variável de ambiente antes de iniciar o servidor.');
 }
 
-if (isServerlessRuntime) {
+// Configuração para Render.com
+if (isRenderRuntime) {
   app.set('trust proxy', 1);
 }
 
@@ -30,9 +31,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isServerlessRuntime ? true : false,
+    secure: isRenderRuntime ? true : false,
     httpOnly: true,
-    sameSite: isServerlessRuntime ? 'none' : 'lax',
+    sameSite: isRenderRuntime ? 'strict' : 'lax',
     maxAge: 3600000
   }
 }));
@@ -650,9 +651,8 @@ function ensureInitialized() {
 
 ensureInitialized();
 
-if (isServerlessRuntime) {
-  module.exports = app;
-} else {
+// Render.com sempre exporta app, nunca inicia listener aqui
+if (!isRenderRuntime) {
   app.listen(PORT, () => {
     console.log(`\n========================================`);
     console.log(`  Belo Frango PDV - Sistema de Vendas`);

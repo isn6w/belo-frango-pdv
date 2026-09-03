@@ -3,10 +3,10 @@ const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
 
-const isServerlessRuntime = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const isRenderRuntime = Boolean(process.env.RENDER);
 
 if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL não configurada. Configure a conexão do Neon no ambiente de produção.');
+  throw new Error('DATABASE_URL não configurada. Configure a conexão do PostgreSQL (Neon) no ambiente de produção via Render.');
 }
 
 function normalizeQuery(sql, params = []) {
@@ -97,7 +97,7 @@ function createPostgresDb() {
 }
 
 function createSqliteDb() {
-  const dbPath = process.env.DB_PATH || (isServerlessRuntime ? path.join('/tmp', 'belo-frango.db') : path.join(__dirname, 'data', 'belo-frango.db'));
+  const dbPath = process.env.DB_PATH || (isRenderRuntime ? path.join('/tmp', 'belo-frango.db') : path.join(__dirname, 'data', 'belo-frango.db'));
   const dataDir = path.dirname(dbPath);
 
   if (!fs.existsSync(dataDir)) {
