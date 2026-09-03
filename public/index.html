@@ -468,6 +468,15 @@
         <input type="file" id="backupImportInput" accept="application/json" style="display:none;">
         <p class="section-hint" style="margin:0;">Exporta o estado atual do PDV em JSON e permite restaurar em caso de falha ou migração.</p>
       </div>
+
+      <h2 class="section-title">Backup mensal e limpeza</h2>
+      <div class="form-card" style="display:flex; flex-wrap:wrap; gap:12px; align-items:end;">
+        <label class="field" style="min-width:180px;">Mês de referência
+          <input type="month" id="backupMensalMes">
+        </label>
+        <button class="btn-primary" id="backupMensalBtn" type="button">Exportar e limpar mês</button>
+        <p class="section-hint" style="width:100%; margin:0;">O arquivo ZIP será verificado antes da limpeza. Produtos, clientes e vendedores permanecem cadastrados.</p>
+      </div>
     </div>
   </section>
 
@@ -476,7 +485,23 @@
 
 <div class="toast" id="toast"></div>
 
+<div class="modal-overlay" id="backupMensalModal">
+  <div class="glass modal-card" style="max-width:620px; width:calc(100% - 28px);">
+    <h3>Backup mensal seguro</h3>
+    <p id="backupMensalEtapa" class="section-hint"></p>
+    <div id="backupMensalResumo" class="lista"></div>
+    <label class="field" id="backupMensalConfirmacaoWrap" style="display:none;">Digite o mês para confirmar a limpeza
+      <input type="text" id="backupMensalConfirmacao" placeholder="AAAA-MM" autocomplete="off">
+    </label>
+    <div class="modal-actions">
+      <button class="btn-primary" id="backupMensalConfirmar" style="flex:1;">Gerar ZIP e verificar</button>
+      <button class="btn-ghost" id="backupMensalCancelar">Cancelar</button>
+    </div>
+  </div>
+</div>
 
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
